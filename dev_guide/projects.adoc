@@ -1,3 +1,4 @@
+[[dev-guide-projects]]
 = Projects
 {product-author}
 {product-version}
@@ -12,7 +13,7 @@ toc::[]
 
 == Overview
 
-A link:../architecture/core_concepts/projects_and_users.html[project] allows a
+A xref:../architecture/core_concepts/projects_and_users.adoc#architecture-core-concepts-projects-and-users[project] allows a
 community of users to organize and manage their content in isolation from other
 communities.
 
@@ -20,8 +21,13 @@ communities.
 
 == Creating a Project
 
-link:../admin_guide/selfprovisioned_projects.html[If allowed] by your cluster
-administrator, you can create a new project using link:../cli_reference/overview.html[the CLI] or the link:../architecture/infrastructure_components/web_console.html[web console].
+ifdef::openshift-enterprise,openshift-origin[]
+xref:../admin_guide/managing_projects.adoc#selfprovisioning-projects[If allowed] by your cluster administrator
+endif::[]
+ifdef::openshift-dedicated,openshift-online[]
+If allowed
+endif::[]
+, you can create a new project using xref:../cli_reference/index.adoc#cli-reference-index[the CLI] or the xref:../architecture/infrastructure_components/web_console.adoc#architecture-infrastructure-components-web-console[web console].
 
 To create a new project using the CLI:
 
@@ -41,13 +47,28 @@ $ oc new-project hello-openshift \
 ----
 ====
 
+[NOTE]
+====
+The number of projects you are allowed to create
+ifdef::openshift-enterprise,openshift-origin[]
+xref:../admin_guide/managing_projects.adoc#limit-projects-per-user[may be limited by the system administrator].
+endif::[]
+ifdef::openshift-dedicated[]
+may be limited by the system administrator.
+endif::[]
+ifdef::openshift-online[]
+is limited. 
+endif::[]
+Once your limit is reached, you may need to delete an existing project in order to create a new one.
+====
+
 [[view-projects]]
 
 == Viewing Projects
 
 When viewing projects, you are restricted to seeing only the projects you have
 access to view based on the
-link:../architecture/additional_concepts/authorization.html[authorization
+xref:../architecture/additional_concepts/authorization.adoc#architecture-additional-concepts-authorization[authorization
 policy].
 
 To view a list of projects:
@@ -65,8 +86,8 @@ $ oc project <project_name>
 ----
 
 You can also use the
-link:../architecture/infrastructure_components/web_console.html[web console] to
-view and change between projects. After link:authentication.html[authenticating]
+xref:../architecture/infrastructure_components/web_console.adoc#architecture-infrastructure-components-web-console[web console] to
+view and change between projects. After xref:authentication.adoc#dev-guide-authentication[authenticating]
 and logging in, you are presented with a list of projects that you have access
 to:
 
@@ -75,12 +96,12 @@ to:
 image::console_projects.png["Projects Page"]
 ====
 
-If you use link:../cli_reference/get_started_cli.html[the CLI] to
-link:#create-a-project[create a new project], you can then refresh the page in
+If you use xref:../cli_reference/get_started_cli.adoc#cli-reference-get-started-cli[the CLI] to
+xref:create-a-project[create a new project], you can then refresh the page in
 the browser to see the new project.
 
 Selecting a project brings you to the
-link:../architecture/infrastructure_components/web_console.html#project-overviews[project
+xref:../architecture/infrastructure_components/web_console.adoc#project-overviews[project
 overview] for that project.
 
 [[check-project-status]]
@@ -98,9 +119,9 @@ $ oc status
 
 == Filtering by Labels
 You can filter the contents of a project page in the
-link:../architecture/infrastructure_components/web_console.html[web console] by
+xref:../architecture/infrastructure_components/web_console.adoc#architecture-infrastructure-components-web-console[web console] by
 using the
-link:../architecture/core_concepts/pods_and_services.html#labels[labels] of a
+xref:../architecture/core_concepts/pods_and_services.adoc#labels[labels] of a
 resource. You can pick from a suggested label name and values, or type in your
 own. Multiple filters can be added. When multiple filters are applied, resources
 must match all of the filters to remain visible.
@@ -144,6 +165,17 @@ or by clicking individual filters to remove them:
 image::console_filter_active.png["Web Console Filter Active"]
 ====
 
+[[web-console-bookmarking-page-states]]
+== Bookmarking Page States
+
+The {product-title}
+xref:../architecture/infrastructure_components/web_console.adoc#architecture-infrastructure-components-web-console[web
+console] now bookmarks page states, which is helpful in saving label filters and
+other settings.
+
+When you do something to change the page's state, like switching between tabs,
+the URL in the browser's navigation bar is automatically updated.
+
 [[delete-a-project]]
 
 == Deleting a Project
@@ -151,9 +183,10 @@ image::console_filter_active.png["Web Console Filter Active"]
 When you delete a project, the server updates the project status to Terminating
 from Active. The server then clears all content from a project that is
 Terminating before finally removing the project. While a project is in
-Terminating status, a user cannot add new content to the project.
+Terminating status, a user cannot add new content to the project. Projects can
+be deleted from the CLI or the web console.
 
-To delete a project:
+To delete a project using the CLI:
 
 ----
 $ oc delete project <project_name>

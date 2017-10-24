@@ -1,3 +1,4 @@
+[[whats-new-applications]]
 = Applications
 {product-author}
 {product-version}
@@ -37,7 +38,7 @@ making existing topologies more manageable.
 The first step necessary to accomplish this is to remove "application" as a
 keyword since "application" can mean something different to everyone. Instead,
 you can have as many components as you desire, contained by a
-link:../architecture/core_concepts/projects_and_users.html#projects[project],
+xref:../architecture/core_concepts/projects_and_users.adoc#projects[project],
 flexibly linked together, and optionally labeled to provide any groupings or
 structure. This new model allows for a standalone MySQL instance, or one shared
 between JBoss components, or really any combination of components you can
@@ -47,7 +48,7 @@ Flexible linking means you can link any two arbitrary components together. As
 long as one component can export environment variables and the second component
 consume values from those environment variables, with potential variable name
 transformation, you can link together any two components without having to
-change the images they are based on. So the best containerized implementation of
+change the images they are based on. So the best container-based implementation of
 your desired database and web framework can be consumed directly rather than you
 having to fork them both and rework them to be compatible.
 

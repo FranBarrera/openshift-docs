@@ -1,9 +1,0 @@
-= Overview
-{product-author}
-{product-version}
-:data-uri:
-:icons:
-:experimental:
-
-This topic group includes information on the different xPaaS middleware images
-available for OpenShift users.

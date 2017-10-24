@@ -1,0 +1,471 @@
+[[release-notes-osd-product-updates]]
+= Latest Product Updates
+{product-author}
+{product-version}
+:data-uri:
+:icons:
+:experimental:
+:toc: macro
+:toc-title:
+:prewrap!:
+
+toc::[]
+
+== Overview
+
+https://www.openshift.com/dedicated/[Red Hat {product-title}] provides managed, single-tenant OpenShift environments on the public cloud. Installed and managed by Red Hat, these clusters can provide additional resources as needed, use Red Hat JBoss® Middleware and partner services, integrate with an existing authentication system, and connect to a private datacenter.
+
+Red Hat {product-title} is a Platform as a Service (PaaS) that provides
+developers and IT organizations with a cloud application platform for deploying
+new applications on secure, scalable resources with minimal configuration and
+management overhead. {product-title} supports a wide selection of
+programming languages and frameworks, such as Java, Ruby, and PHP.
+
+See https://www.openshift.com/dedicated[https://www.openshift.com/dedicated] for more information.
+
+[[osd-about-this-release]]
+== About This Update
+
+[NOTE]
+====
+Cluster upgrades to a new update of {product-title} are scheduled to begin soon,
+per recent Red Hat communications; customers can check the
+link:https://status-dedicated.openshift.com/access/login[{product-title} Status]
+page for their scheduled upgrade date. This topic has been updated to reflect
+the upcoming new features and changes.
+====
+
+The latest update of Red Hat {product-title} uses  link:https://docs.openshift.com/container-platform/3.6/release_notes/ocp_3_6_release_notes.html[Red Hat OpenShift Container Platform version 3.6], which is based on
+link:https://github.com/openshift/origin/releases/tag/v3.6.0[OpenShift Origin 3.6]. New features, changes, bug fixes, and known issues that
+pertain to the latest updates of {product-title} are included in this topic.
+
+[[osd-new-features-and-enhancements]]
+== New Features and Enhancements
+
+[[osd-container-orchestration]]
+=== Container Orchestration
+
+[[osd-kubernetes-upstream]]
+==== Kubernetes Upstream
+
+Many core features announced in March for Kubernetes 1.6 were the result of
+OpenShift engineering. Red Hat continues to influence the product in the areas
+of storage, networking, resource management, authentication and authorization,
+multi-tenancy, security, service deployments and templating, and controller
+functionality.
+
+[[osd-project-configmaps-secrets-downward-api-in-same-directory]]
+==== Project ConfigMaps, Secrets, and Downward API In the Same Directory
+
+When you mount a memory backed volume into a container, it leverages a
+directory. Now, you can place all sources of the configuration for your
+application (`configMaps`, secrets, and downward API) into the same directory
+path.
+
+The new projected line in the volume definition allows you to tell multiple
+volumes to leverage the same mount point while guarding for path collisions.
+
+----
+volumes:
+  - name: all-in-one
+    projected:
+      sources:
+      - secret:
+          name: test-secret
+          items:
+            - key: data-1
+              path: mysecret/my-username
+            - key: data-2
+              path: mysecret/my-passwd
+
+      - downwardAPI:
+          items:
+            - path: mydapi/labels
+              fieldRef:
+                fieldPath: metadata.labels
+            - path: mydapi/name
+              fieldRef:
+                fieldPath: metadata.name
+            - path: mydapi/cpu_limit
+              resourceFieldRef:
+                containerName: allinone-normal
+                resource: limits.cpu
+                divisor: "1m"
+
+                - configMap:
+                    name: special-config
+                    items:
+                      - key: special.how
+                        path: myconfigmap/shared-config
+                      - key: special.type
+                        path: myconfigmap/private-config
+----
+
+[[osd-init-containers]]
+==== Init Containers
+
+You run
+xref:../architecture/core_concepts/containers_and_images.adoc#init-containers[init
+containers] in the same pod as your application container to create the
+environment your application requires or to satisfy any preconditions the
+application might have. You can run utilities that you would otherwise need to
+place into your application image. You can run them in different file system
+namespaces (view of the same file system) and offer them different secrets than
+your application container.
+
+Init containers run to completion and each container must finish before the next
+one starts. The init containers will honor the restart policy. Leverage
+`initContainers` in the `podspec`.
+
+----
+$ cat init-containers.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: init-loop
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+    - containerPort: 80
+    volumeMounts:
+    - name: workdir
+      mountPath: /usr/share/nginx/html
+  initContainers:
+  - name: init
+    image: centos:centos7
+    command:
+    - /bin/bash
+    - "-c"
+    - "while :; do sleep 2; echo hello init container; done"
+  volumes:
+  - name: workdir
+    emptyDir: {}
+----
+
+----
+$ oc get -f init-containers.yaml
+NAME        READY     STATUS     RESTARTS   AGE
+nginx       0/1       Init:0/1   0          6m
+----
+
+[[osd-turn-configmap-content-into-environment-variables]]
+==== Turn ConfigMap Content into Environment Variables within the Container
+
+Instead of individually declaring environment variables in a pod definition, a
+`configMap` can be imported and all of its content can be dynamically turned
+into environment variables.
+
+In the pod specification, leverage the `envFrom` object and reference the
+desired `configMap`:
+
+----
+env:
+- name: duplicate_key
+  value: FROM_ENV
+- name: expansion
+  value: $(REPLACE_ME)
+envFrom:
+- configMapRef:
+    name: env-config
+----
+
+////
+See xref:../dev_guide/configmaps.adoc#dev-guide-configmaps[`ConfigMaps`] for more
+information.
+////
+
+[[osd-pod-affinity-and-anti-affinity]]
+==== Pod Affinity and Anti-Affinity
+
+Pod affinity and anti-affinity is helpful if you want to allow Kubernetes the
+freedom to select which zone an application lands in, but whichever it chooses
+you would like to make sure another component of that application lands in the
+same zone.
+
+Another use case is if you have two application components that, due to security
+reasons, cannot be on the same physical box. However, you do not want to lock
+them into labels on nodes. You want them to land anywhere, but still honor
+anti-affinity.
+
+Many of the same high-level concepts mentioned in the node affinity and
+anti-affinity hold true here. For pods, you declare a
+link:https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#inter-pod-affinity-and-anti-affinity-beta-feature[`topologyKey`],
+which will be used as the boundary object for the placement logic.
+
+----
+affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: service
+            operator: In
+            values: [“S1”]
+        topologyKey: failure-domain.beta.kubernetes.io/zone
+
+
+affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: service
+            operator: In
+            values: [“S1”]
+        topologyKey: kubernetes.io/hostname
+----
+
+////
+See
+xref:../admin_guide/scheduling/pod_affinity.adoc#admin-guide-sched-pod-affinity[Advanced
+Scheduling and Pod Affinity and Anti-affinity] for more information.
+////
+
+[[osd-platform-management]]
+=== Platform Management
+
+[[osd-github-identity-provider-can-optionally-require-a-team]]
+==== GitHub Identity Provider Can Optionally Require a Team
+
+Users can now test for GitHub team membership at log in.
+
+There is now a list of one or more GitHub teams to which a user must have
+membership in order to authenticate. If specified, only GitHub users that are
+members of at least one of the listed teams will be allowed to log in. If this
+is not specified, then any person with a valid GitHub account can log in.
+
+////
+See
+xref:../admin_solutions/authentication.adoc#admin-solutions-authentication[Authentication]
+for more information.
+////
+
+[[osd-developer-experience]]
+=== Developer Experience
+
+[[osd-easier-custom-slave-configuration-for-jenkins]]
+==== Easier Custom Slave Configuration for Jenkins
+
+It is now easier to make images available as slave pod templates. Slaves are
+defined as image-streams or image-stream tags with the appropriate label. Slaves
+can also be specified via a `ConfigMap` with the appropriate label.
+
+////
+(Uncomment after OSD 3.6 update finishes)
+
+See
+xref:../using_images/other_images/jenkins.adoc#using-the-jenkins-kubernetes-plug-in-to-run-jobs[Using
+the Jenkins Kubernetes Plug-in to Run Jobs] for more information.
+////
+
+[[osd-detailed-build-timing]]
+==== Detailed Build Timing
+
+Builds now record timing information based on more granular steps.
+
+Information such as how long it took to pull the base image, clone the source,
+build the source, and push the image are provided. For example:
+
+----
+$ oc describe build nodejs-ex-1
+Name:        nodejs-ex-1
+Namespace:    myproject
+Created:    2 minutes ago
+
+Status:            Complete
+Started:        Fri, 07 Jul 2017 17:49:37 EDT
+Duration:        2m23s
+  FetchInputs:       2s
+  CommitContainer:   6s
+  Assemble:           36s
+  PostCommit:            0s
+  PushImage:          1m0s
+----
+
+[[osd-other-developer-experience-changes]]
+==== Other Developer Experience Changes
+
+////
+* xref:../dev_guide/builds/triggering_builds.adoc#webhook-triggers[Webhook triggers] for Github and Bitbucket.
+* HTTPD 2.4 s2i support.
+* Separate build events for `start`, `canceled`, `success`, and `fail`.
+* Support for xref:../dev_guide/builds/build_strategies.adoc#docker-strategy-build-args[arguments in Docker files].
+* xref:../dev_guide/builds/build_strategies.adoc#jenkins-pipeline-strategy-environment[Environment variables in pipeline builds].
+* Credential support for Jenkins Sync plug-in for ease of working external Jenkins instance.
+* xref:../dev_guide/builds/build_environment.adoc#overview[`ValueFrom` Support] in build environment variables.
+* Deprecated Jenkins v1 image.
+* `oc cluster up`: support launching service catalog
+* Switch to nip.io from xip.io, with improved stability
+////
+* Webhook triggers for Github and Bitbucket.
+* HTTPD 2.4 s2i support.
+* Separate build events for `start`, `canceled`, `success`, and `fail`.
+* Support for arguments in Docker files.
+* Environment variables in pipeline builds.
+* Credential support for Jenkins Sync plug-in for ease of working external Jenkins instance.
+* `ValueFrom` support in build environment variables.
+* Deprecated Jenkins v1 image.
+* `oc cluster up`: support launching service catalog
+* Switch to nip.io from xip.io, with improved stability
+
+[[osd-pulling-artifacts-from-remote-resources]]
+==== Pulling Artifacts from Remote Resources
+
+Previously, `oc start-build` only allowed a local file to be specified, but did
+not allow a URL to a remote resource. Now, users can pull in artifacts
+via `oc start-build --from-file=<some URL>`.
+
+This feature only works against GET-based endpoints that do not require
+authentication and use either no transport layer security (TLS), or TLS with a
+certificate trusted by the client. This feature does not reinvent `curl`. The
+file is downloaded by the CLI, then uploaded to the binary build endpoint.
+
+[[osd-setting-env-vars-when-creating-an-app-from-template]]
+==== Setting Environment Variables When Creating an Application from a Template
+
+Users now also have the ability to set environment variable when creating an
+object (for example, an application) from a template. Previously, this was a
+separate step following template creation.
+
+[[osd-support-for-p-parameter-values]]
+==== Support for -p Parameter Values
+
+Both `oc new-app` and `oc process` now support `-p` for parameter values. The
+`-v` flag is deprecated.
+
+[[osd-ci-cd-pipeline]]
+==== CI/CD Pipeline
+
+Enablement materials regarding use of CI/CD pipelines with {product-title} are
+now improved. The complexity and number of pipeline samples provided is
+increased.
+
+Support is added to `oc new-app` and `oc new-build` so that the commands are
+pipeline aware.
+
+.Pipelines Page
+image::ocp35-pipelines_page.png[Pipelines Page]
+
+////
+See
+xref:../dev_guide/application_lifecycle/promoting_applications.adoc#dev-guide-promoting-applications[Promoting
+Applications Across Environments] and
+xref:../dev_guide/application_lifecycle/new_app.adoc#dev-guide-new-app[Creating New Applications] for
+more information.
+////
+
+[[osd-web-console]]
+=== Web Console
+
+[[osd-project-overview-redesign]]
+==== Project Overview Redesign
+
+The Project Overview was resigned based on feedback from customers. In this
+redesign, there are three focused views:
+
+- Applications
+- Pipelines
+- Resource types
+
+There are now more contextual actions and rolled up metrics across multiple
+pods.
+
+image::ocp36-redesigned-project-overview.gif[Redesigned Project Overview]
+
+[[osd-image-stream-details]]
+==== Image Stream Details
+
+Additional details are provided about image streams and their tags. This feature
+leverages Cockpit views from image streams. It details tags and provide
+information about each.
+
+image::ocp36-image-stream-details.png[bind in context]
+
+[[osd-better-messages-for-syntax-errors]]
+==== Better Messages for Syntax Errors in JSON and YAML Files
+
+Better messages for syntax errors in JSON and YAML files are now provided. This
+includes details of the syntax problem and the line number containing the issue.
+
+This feature validates input on commands such as `oc create -f foo.json` and
+`oc new-app -f template.yaml`. For example:
+
+----
+$ oc create -f dc.json
+error: json: line 27: invalid character 'y' looking for beginning of value
+----
+
+[[osd-cascading-deletes]]
+==== Cascading Deletes
+
+When deleting a resource, this feature ensures that all generated or dependent
+resources are also deleted.
+
+For example, when selecting a deployment configuration and deleting will delete
+the deployment configuration, deployment history, and any running pods.
+
+image::ocp36-cascading-deletes.png[cascading deletes]
+
+[[osd-other-user-interface-changes]]
+==== Other User Interface Changes
+
+- Pod details now should show information about
+xref:../architecture/core_concepts/containers_and_images.adoc#init-containers[init
+containers].
+- You can now add or edit environment variables that are populated by data in
+secrets or configuration maps.
+- You can now create cluster-wide resources from JSON and YAML files.
+- There is now an alignment of notification designs.
+
+[[osd-web-console-added-service-details]]
+==== Added Service Details
+
+There are now added service details on configuration, traffic, routes, and pods.
+
+There is a new section highlighting routes, service and target ports, host name,
+and TLS. There is also a section iterating pods and their status.
+
+.Service Details View
+image::ocp35-service-details.png[Service Details]
+
+[[osd-web-console-configmap-create-list-detail]]
+==== ConfigMap: Create, List, Detail
+
+There is now the ability to easily work with configuration data decoupled from
+the container image. You can:
+
+* Create new `ConfigMap`
+* List out existing `ConfigMaps`
+* Work with the configuration details.
+* Easily consume them from various other pages.
+
+.Create a ConfigMap
+image::ocp-35-create-configmap.png[Create a ConfigMap]
+
+.Add Config Files
+image::ocp-35-add-config-files.png[Add Config Files]
+
+[[osd-web-console-show-build-failures]]
+==== Show Build Failures
+
+Users no longer have to search logs to gain a better understanding of why build
+failed. Individual build status messages are now updated with details that are
+available via the web console and the CLI.
+
+.Build Failures as Seen in the Web Console
+image::ocp35-build-failure.png[Build Failures in the Web Console]
+
+.Build Failures as Seen in the CLI
+image::ocp35-build-failure-cli.png[Build Failures in the CLI]
+
+[[osd-notable-technical-changes]]
+== Notable Technical Changes
+
+OpenShift Container Platform 3.6 and 3.5 introduced several notable technical changes to {product-title}. Refer to the OpenShift Container Platform link:https://docs.openshift.com/container-platform/3.6/release_notes/ocp_3_6_release_notes.html#ocp-36-notable-technical-changes[3.6 Release Notes] and link:https://docs.openshift.com/container-platform/3.5/release_notes/ocp_3_5_release_notes.html#ocp-35-notable-technical-changes[3.5 Release Notes] for more information on technical changes to the underlying software.
+
+[[osd-bug-fixes]]
+== Bug Fixes
+
+Refer to the OpenShift Container Platform link:https://docs.openshift.com/container-platform/3.6/release_notes/ocp_3_6_release_notes.html#ocp-36-bug-fixes[3.6 Release Notes] and link:https://docs.openshift.com/container-platform/3.5/release_notes/ocp_3_5_release_notes.html#ocp-35-bug-fixes[3.5 Release Notes] for more information on bug fixes.

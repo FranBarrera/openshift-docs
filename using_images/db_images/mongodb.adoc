@@ -1,3 +1,4 @@
+[[using-images-db-images-mongodb]]
 = MongoDB
 {product-author}
 {product-version}
@@ -11,84 +12,129 @@
 toc::[]
 
 == Overview
-OpenShift provides a Docker image for running MongoDB.  This image can provide
-database services based on username, password, and database name settings
-provided via configuration.
+{product-title} provides a container image for running MongoDB.  This image can
+provide database services based on username, password, and database name
+settings provided via configuration.
 
 == Versions
-Currently, OpenShift provides version
-https://github.com/openshift/mongodb/tree/master/2.4[2.4] of MongoDB.
+Currently, {product-title} provides versions
+https://github.com/openshift/mongodb/tree/master/2.4[2.4], https://github.com/openshift/mongodb/tree/master/2.6[2.6], and https://github.com/openshift/mongodb/tree/master/3.2[3.2] of MongoDB.
 
 == Images
 
-This image comes in two flavors, depending on your needs:
+ifdef::openshift-online[]
+RHEL 7 images are available through the Red Hat Registry:
+
+----
+$ docker pull registry.access.redhat.com/openshift3/mongodb-24-rhel7
+$ docker pull registry.access.redhat.com/rhscl/mongodb-26-rhel7
+$ docker pull registry.access.redhat.com/rhscl/mongodb-32-rhel7
+----
+
+You can use these images through the `mongodb` image stream.
+endif::[]
+
+ifndef::openshift-online[]
+These images come in two flavors, depending on your needs:
 
 * RHEL 7
 * CentOS 7
 
-*RHEL 7 Based Image*
+*RHEL 7 Based Images*
 
-The RHEL 7 image is available through Red Hat's subscription registry via:
+The RHEL 7 images are available through the Red Hat Registry:
 
 ----
 $ docker pull registry.access.redhat.com/openshift3/mongodb-24-rhel7
+$ docker pull registry.access.redhat.com/rhscl/mongodb-26-rhel7
+$ docker pull registry.access.redhat.com/rhscl/mongodb-32-rhel7
 ----
 
-*CentOS 7 Based Image*
+*CentOS 7 Based Images*
 
-This image is available on DockerHub. To download it:
+These images are available on Docker Hub:
 
 ----
 $ docker pull openshift/mongodb-24-centos7
+$ docker pull centos/mongodb-26-centos7
+$ docker pull centos/mongodb-32-centos7
 ----
 
 To use these images, you can either access them directly from these
-registries or push them into your OpenShift docker registry. Additionally,
+registries or push them into your {product-title} Docker registry. Additionally,
 you can create an ImageStream that points to the image,
-either in your docker registry or at the external location. Your OpenShift
+either in your Docker registry or at the external location. Your {product-title}
 resources can then reference the ImageStream. You can find
 https://github.com/openshift/origin/tree/master/examples/image-streams[example]
-ImageStream definitions for all the provided OpenShift images.
+ImageStream definitions for all the provided {product-title} images.
+endif::[]
 
 == Configuration and Usage
 
 === Initializing the Database
 
-The first time you use the shared volume, the database is created along with the
+You can configure MongoDB with an ephemeral volume or a persistent volume.
+The first time you use the volume, the database is created along with the
 database administrator user. Afterwards, the MongoDB daemon starts up. If you
 are re-attaching the volume to another container, then the database, database
 user, and the administrator user are not created, and the MongoDB daemon starts.
 
 The following command creates a new database
-link:../../architecture/core_concepts/pods_and_services.html#pods[pod] with
-MongoDB running in a container:
+xref:../../architecture/core_concepts/pods_and_services.adoc#pods[pod] with
+MongoDB running in a container with an ephemeral volume:
 
 ----
-$ oc new-app -e \
-    MONGODB_USER=<username>,MONGODB_PASSWORD=<password>,MONGODB_DATABASE=<database_name>,MONGODB_ADMIN_PASSWORD=<admin_password> \
-    openshift/mongodb-24-centos7
+$ oc new-app \
+    -e MONGODB_USER=<username> \
+    -e MONGODB_PASSWORD=<password> \
+    -e MONGODB_DATABASE=<database_name> \
+    -e MONGODB_ADMIN_PASSWORD=<admin_password> \
+ifdef::openshift-enterprise,openshift-dedicated[]
+    registry.access.redhat.com/rhscl/mongodb-26-rhel7
+endif::[]
+ifdef::openshift-origin[]
+    centos/mongodb-26-centos7
+endif::[]
+ifdef::openshift-online[]
+    mongodb:2.6
+endif::[]
 ----
-
 
 === Running MongoDB Commands in Containers
 
-OpenShift uses https://www.softwarecollections.org/[Software Collections] to
-install and launch MongoDB. If you want to execute a MongoDB command inside of a
-running container (for debugging), you must invoke it using bash, to make sure
-the MongoDB collection is enabled, for example:
+{product-title} uses https://www.softwarecollections.org/[Software Collections] (SCLs)
+to install and launch MongoDB. If you want to execute a MongoDB command inside of
+a running container (for debugging), you must invoke it using bash.
+
+To do so, first identify the name of the running MongoDB pod. For example, you can
+view the list of pods in your current project:
 
 ----
-$ oc exec -it -p <pod> -c <container> /bin/bash -c mongo
+$ oc get pods
 ----
 
-To enter a container from the host:
+Then, open a remote shell session to the desired pod:
 
 ----
-$ oc exec -it -p <pod> -c <container> /bin/bash
+$ oc rsh <pod>
 ----
 
-When you enter the container, the required software collection is automatically
-enabled.
+When you enter the container, the required SCL is automatically enabled.
+
+You can now run *mongo* commands from the bash shell to start a MongoDB
+interactive session and perform normal MongoDB operations. For example, to
+switch to the *sampledb* database and authenticate as the database user:
+
+====
+----
+bash-4.2$ mongo -u $MONGODB_USER -p $MONGODB_PASSWORD $MONGODB_DATABASE
+MongoDB shell version: 2.4.9
+connecting to: sampledb
+>
+----
+====
+
+When you are finished, press *CTRL+D* to leave the MongoDB session.
 
 === Environment Variables
 
@@ -117,8 +163,8 @@ be configured with the following environment variables:
 [WARNING]
 ====
 You must specify the user name, password, database name, and *admin* password.
-If you do not specify all four, the pod will fail to start and OpenShift will
-continuously try to restart it.
+If you do not specify all four, the pod will fail to start and {product-title}
+will continuously try to restart it.
 ====
 
 [NOTE]
@@ -138,15 +184,25 @@ MongoDB settings can be configured with the following environment variables:
 
 |`*MONGODB_NOPREALLOC*`
 |Disable data file preallocation.
-|true
+|`*true*`
 
 |`*MONGODB_SMALLFILES*`
 |Set MongoDB to use a smaller default data file size.
-|true
+|`*true*`
 
 |`*MONGODB_QUIET*`
 |Runs MongoDB in a quiet mode that attempts to limit the amount of output.
-|true
+|`*true*`
+
+|`*MONGODB_TEXT_SEARCH_ENABLED*`
+|(MongoDB version 2.4 only) Enables the https://docs.mongodb.org/v2.6/core/index-text/#text-search-text-command[text search] feature.
+
+[NOTE]
+====
+Text search is enabled by default in MongoDB versions 2.6 and higher, and therefore has no configurable parameter.
+====
+
+|`*false*`
 |===
 
 === Volume Mount Points
@@ -154,7 +210,7 @@ MongoDB settings can be configured with the following environment variables:
 The MongoDB image can be run with mounted volumes to enable persistent storage
 for the database:
 
-* *_/var/lib/mongodb_* - This is the database directory where
+* *_/var/lib/mongodb/data_* - This is the database directory where
 MongoDB stores database files.
 
 [[mongodb-changing-passwords]]
@@ -166,71 +222,109 @@ method to change passwords for the database user (`*MONGODB_USER*`) and *admin*
 user is by changing the environment variables `*MONGODB_PASSWORD*` and
 `*MONGODB_ADMIN_PASSWORD*`, respectively.
 
+You can view the current passwords by viewing the pod or deployment
+configuration in the web console or by listing the environment variables with
+the CLI:
+
+----
+$ oc set env pod <pod_name> --list
+----
+
 Changing database passwords directly in MongoDB causes a mismatch between the
 values stored in the variables and the actual passwords. Whenever a database
 container starts, it resets the passwords to the values stored in the
 environment variables.
 
-You can change these passwords with:
+To change these passwords, update one or both of the desired environment
+variables for the related deployment configuration(s) using the `oc set env`
+command. If multiple deployment configurations utilize these environment
+variables, for example in the case of an application created from a template,
+you must update the variables on each deployment configuration so that the
+passwords are in sync everywhere. This can be done all in the same command:
 
 ----
-$ oc env dc mongodb \
+$ oc set env dc <dc_name> [<dc_name_2> ...] \
   MONGODB_PASSWORD=<new_password> \
   MONGODB_ADMIN_PASSWORD=<new_admin_password>
 ----
 
-This triggers the redeployment of the database server if you have a
-link:../../dev_guide/deployments.html#config-change-trigger[configuration change
+[IMPORTANT]
+====
+Depending on your application, there may be other environment variables for
+passwords in other parts of the application that should also be updated to
+match. For example, there could be a more generic `*DATABASE_USER*` variable in
+a front-end pod that should match the database user's password. Ensure that
+passwords are in sync for all required environment variables per your
+application, otherwise your pods may fail to redeploy when triggered.
+====
+
+Updating the environment variables triggers the redeployment of the database
+server if you have a
+xref:../../dev_guide/deployments/basic_deployment_operations.adoc#config-change-trigger[configuration change
 trigger]. Otherwise, you must manually start a new deployment in order to apply
 the password changes.
 
-Note that you can change one password but not the other by simply omitting one
-of the arguments to `oc env` above.
+To verify that new passwords are in effect, first open a remote shell session to
+the running MongoDB pod:
 
-You can verify that the new password is in effect with:
+----
+$ oc rsh <pod>
+----
+
+From the bash shell, verify the database user's new password:
+
+----
+bash-4.2$ mongo -u $MONGODB_USER -p <new_password> $MONGODB_DATABASE --eval "db.version()"
+----
+
+If the password was changed correctly, you should see output like this:
 
 ====
 ----
-$ oc get pods
-...
-$ oc exec <db_podname> -- bash -c 'mongo -u $MONGODB_USER -p NewPassword $MONGODB_DATABASE --eval "db.version()"'
+MongoDB shell version: 2.6.9
+connecting to: sampledb
+2.6.9
 ----
 ====
 
-Replace `<db_podname>` with the name of the running MongoDB pod.
+To verify the *admin* user's new password:
 
-To verify the *admin* password:
-
-====
 ----
-$ oc exec <db_podname> -- bash -c 'mongo -u admin -p NewAdminPassword admin --eval "db.version()"'
+bash-4.2$ mongo -u admin -p <new_admin_password> admin --eval "db.version()"
 ----
-====
 
-In both cases, if the password was changed correctly, you should see this output:
+If the password was changed correctly, you should see output like this:
 
 ====
 ----
 MongoDB shell version: 2.4.9
-connecting to: sampledb
+connecting to: admin
 2.4.9
 ----
 ====
 
 == Creating a Database Service from a Template
 
-OpenShift provides a link:../../dev_guide/templates.html[template] to make
+{product-title} provides a xref:../../dev_guide/templates.adoc#dev-guide-templates[template] to make
 creating a new database service easy. The template provides parameter fields to
 define all the mandatory environment variables (user, password, database name,
 etc) with predefined defaults including auto-generation of password values. It
 will also define both a
-link:../../architecture/core_concepts/deployments.html#deployments-and-deployment-configurations[deployment
+xref:../../architecture/core_concepts/deployments.adoc#deployments-and-deployment-configurations[deployment
 configuration] and a
-link:../../architecture/core_concepts/pods_and_services.html#services[service].
+xref:../../architecture/core_concepts/pods_and_services.adoc#services[service].
 
 The MongoDB templates should have been registered in the default *openshift*
-project by your cluster administrator during the
-link:../../install_config/install/first_steps.html[First Steps] setup process.
+project by your cluster administrator during the initial cluster setup.
+ifdef::openshift-enterprise,openshift-origin[]
+See xref:../../install_config/imagestreams_templates.adoc#install-config-imagestreams-templates[Loading the Default Image Streams and Templates]
+for more details, if required.
+endif::[]
+
+ifdef::openshift-online[]
+The following template is available:
+endif::[]
+ifndef::openshift-online[]
 There are two templates available:
 
 * `mongodb-ephemeral` is for development/testing purposes only because it uses
@@ -238,15 +332,20 @@ ephemeral storage for the database content. This means that if the database
 pod is restarted for any reason, such as the pod being moved to another node
 or the deployment configuration being updated and triggering a redeploy, all
 data will be lost.
+endif::[]
 * `mongodb-persistent` uses a persistent volume store for the database data
-which means the data will survive a pod restart. Using persistent volumes
-requires a persistent volume pool be defined in the OpenShift deployment.
+which means the data will survive a pod restart.
+ifndef::openshift-online[]
+Using persistent volumes requires a persistent volume pool be defined in the
+{product-title} deployment.
+endif::[]
+ifdef::openshift-enterprise,openshift-origin[]
 Cluster administrator instructions for setting up the pool are located
-link:../../admin_guide/persistent_storage_nfs.html[here].
-
+xref:../../install_config/persistent_storage/persistent_storage_nfs.adoc#install-config-persistent-storage-persistent-storage-nfs[here].
+endif::[]
 
 You can find instructions for instantiating templates by following these
-link:../../dev_guide/templates.html#creating-resources-from-a-template[instructions].
+xref:../../dev_guide/templates.adoc#dev-guide-templates[instructions].
 
 Once you have instantiated the service, you can copy the user name, password,
 and database name environment variables into a deployment configuration for
@@ -267,14 +366,13 @@ endif::[]
 ifdef::openshift-enterprise[]
 [NOTE]
 ====
-Enabling clustering for database images is currently in
-link:../../whats_new/ose_3_0_release_notes.html#technology-preview[Technology
-Preview] and not intended for production use.
+Enabling clustering for database images is currently in Technology Preview and
+not intended for production use.
 ====
 endif::[]
 
 Red Hat provides a proof-of-concept
-link:../../architecture/core_concepts/templates.html[template] for MongoDB
+xref:../../dev_guide/templates.adoc#dev-guide-templates[template] for MongoDB
 replication (clustering); you can obtain the
 https://github.com/openshift/mongodb/tree/master/2.4/examples/replica[example
 template from GitHub].
@@ -304,9 +402,9 @@ recommended replication strategy for MongoDB.
 === Creating the Deployment Configuration
 
 To set up MongoDB replication, a
-link:../../architecture/core_concepts/deployments.html#deployments-and-deployment-configurations[deployment
+xref:../../architecture/core_concepts/deployments.adoc#deployments-and-deployment-configurations[deployment
 configuration] is defined in the example template that defines a
-link:../../architecture/core_concepts/deployments.html#replication-controllers[replication
+xref:../../architecture/core_concepts/deployments.adoc#replication-controllers[replication
 controller]. The replication controller manages the members of the MongoDB
 cluster.
 
@@ -332,83 +430,49 @@ File]
 .Deployment Configuration Object Definition in the Example Template
 ====
 
-[source,json]
+[source,yaml]
 ----
-{
-      "kind": "DeploymentConfig",
-      "apiVersion": "v1",
-      "metadata": {
-        "name": "${MONGODB_SERVICE_NAME}",
-      },
-      "spec": {
-        "strategy": {
-          "type": "Recreate",
-          "resources": {}
-        },
-        "triggers": [
-          {
-            "type":"ConfigChange"
-          }
-        ],
-        "replicas": 3,
-        "selector": {
-          "name": "mongodb-replica"
-        },
-        "template": {
-          "metadata": {
-            "labels": {
-              "name": "mongodb-replica"
-            }
-          },
-          "spec": {
-            "containers": [
-              {
-                "name":  "member",
-                "image": "openshift/mongodb-24-centos7",
-                "env": [
-                  {
-                    "name": "MONGODB_USER",
-                    "value": "${MONGODB_USER}"
-                  },
-                  {
-                    "name": "MONGODB_PASSWORD",
-                    "value": "${MONGODB_PASSWORD}"
-                  },
-                  {
-                    "name": "MONGODB_DATABASE",
-                    "value": "${MONGODB_DATABASE}"
-                  },
-                  {
-                    "name": "MONGODB_ADMIN_PASSWORD",
-                    "value": "${MONGODB_ADMIN_PASSWORD}"
-                  },
-                  {
-                    "name": "MONGODB_REPLICA_NAME",
-                    "value": "${MONGODB_REPLICA_NAME}"
-                  },
-                  {
-                    "name": "MONGODB_SERVICE_NAME",
-                    "value": "${MONGODB_SERVICE_NAME}"
-                  },
-                  {
-                    "name": "MONGODB_KEYFILE_VALUE",
-                    "value": "${MONGODB_KEYFILE_VALUE}"
-                  }
-                ],
-                "ports":[
-                  {
-                    "containerPort": 27017,
-                    "protocol": "TCP"
-                  }
-                ]
-              }
-            ]
-          }
-        },
-        "restartPolicy": "Never",
-        "dnsPolicy": "ClusterFirst"
-      }
-    }
+kind: DeploymentConfig
+apiVersion: v1
+metadata:
+  name: "${MONGODB_SERVICE_NAME}"
+spec:
+  strategy:
+    type: Recreate
+    resources: {}
+  triggers:
+    - type: ConfigChange
+  replicas: 3
+  selector:
+    name: mongodb-replica
+  template:
+    metadata:
+      labels:
+        name: mongodb-replica
+    spec:
+      containers:
+        - name: member
+          image: openshift/mongodb-24-centos7
+          env:
+            - name: MONGODB_USER
+              value: "${MONGODB_USER}"
+            - name: MONGODB_PASSWORD
+              value: "${MONGODB_PASSWORD}"
+            - name: MONGODB_DATABASE
+              value: "${MONGODB_DATABASE}"
+            - name: MONGODB_ADMIN_PASSWORD
+              value: "${MONGODB_ADMIN_PASSWORD}"
+            - name: MONGODB_REPLICA_NAME
+              value: "${MONGODB_REPLICA_NAME}"
+            - name: MONGODB_SERVICE_NAME
+              value: "${MONGODB_SERVICE_NAME}"
+            - name: MONGODB_KEYFILE_VALUE
+              value: "${MONGODB_KEYFILE_VALUE}"
+          ports:
+            - containerPort: 27017
+              protocol: TCP
+  restartPolicy: Never
+  dnsPolicy: ClusterFirst
 ----
 ====
 
@@ -420,77 +484,75 @@ of the *rs0* replication set, as the value of `*MONGODB_REPLICA_NAME*` is set to
 [[creating-the-service-pod]]
 === Creating the Service Pod
 
-To initialize members created by link:#creating-the-deploymentconfig[the
-deployment configuration], a _service pod_ is defined in the template. This pod
-starts MongoDB with the `initiate` argument, which instructs the container
-entrypoint to behave link:#mongo-creating-headless-service[slightly differently]
+To initialize members created by xref:creating-the-deploymentconfig[the
+deployment configuration], the pods are started with the `initiate` argument,
+which instructs the startup script to behave xref:mongo-creating-headless-service[slightly differently]
 than a regular, stand-alone MongoDB database.
 
-[[example-service-pod]]
-.Service Pod Object Definition in the Example Template
+[[example-deployment-config]]
+.Deployment Configuration Object Definition in the Example Template
 ====
 
-[source,json]
+[source,yaml]
 ----
-{
-  "kind": "Pod",
-  "apiVersion": "v1",
-  "metadata": {
-    "name": "mongodb-service",
-    "creationTimestamp": null,
-    "labels": {
-      "name": "mongodb-service"
-    }
-  },
-  "spec": {
-    "restartPolicy": "Never",
-    "dnsPolicy": "ClusterFirst",
-    "containers": [
-      {
-        "name": "initiate",
-        "image": "openshift/mongodb-24-centos7",
-        "args": ["initiate"],
-        "env": [
-          {
-            "name": "MONGODB_USER",
-            "value": "${MONGODB_USER}"
-          },
-          {
-            "name": "MONGODB_PASSWORD",
-            "value": "${MONGODB_PASSWORD}"
-          },
-          {
-            "name": "MONGODB_DATABASE",
-            "value": "${MONGODB_DATABASE}"
-          },
-          {
-            "name": "MONGODB_ADMIN_PASSWORD",
-            "value": "${MONGODB_ADMIN_PASSWORD}"
-          },
-          {
-            "name": "MONGODB_REPLICA_NAME",
-            "value": "${MONGODB_REPLICA_NAME}"
-          },
-          {
-            "name": "MONGODB_SERVICE_NAME",
-            "value": "${MONGODB_SERVICE_NAME}"
-          },
-          {
-            "name": "MONGODB_KEYFILE_VALUE",
-            "value": "${MONGODB_KEYFILE_VALUE}"
-          }
-        ]
-      }
-    ]
-  }
-}
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata:
+    name: "${MONGODB_SERVICE_NAME}"
+  spec:
+    strategy:
+      type: Recreate
+      recreateParams:
+        post:
+          failurePolicy: Retry
+          execNewPod:
+            command: ["run-mongod","initiate"]
+            containerName: mongodb
+            env:
+            - name: MONGODB_INITIAL_REPLICA_COUNT
+              value: '3'
+    triggers:
+    - type: ConfigChange
+    replicas: 3
+    selector:
+      name: mongodb-replica
+    template:
+      metadata:
+        labels:
+          name: mongodb-replica
+      spec:
+        containers:
+        - name: mongodb
+          image: openshift/mongodb-24-centos7
+          readinessProbe:
+            tcpSocket:
+              port: 27017
+            initialDelaySeconds: 15
+            timeoutSeconds: 1
+          env:
+          - name: MONGODB_USER
+            value: "${MONGODB_USER}"
+          - name: MONGODB_PASSWORD
+            value: "${MONGODB_PASSWORD}"
+          - name: MONGODB_DATABASE
+            value: "${MONGODB_DATABASE}"
+          - name: MONGODB_ADMIN_PASSWORD
+            value: "${MONGODB_ADMIN_PASSWORD}"
+          - name: MONGODB_REPLICA_NAME
+            value: "${MONGODB_REPLICA_NAME}"
+          - name: MONGODB_SERVICE_NAME
+            value: "${MONGODB_SERVICE_NAME}"
+          - name: MONGODB_KEYFILE_VALUE
+            value: "${MONGODB_KEYFILE_VALUE}"
+          ports:
+          - containerPort: 27017
 ----
 ====
 
 [[mongo-creating-headless-service]]
 === Creating a Headless Service
 
-The `initiate` argument in the link:#example-service-pod[container specification
+The `initiate` argument in the xref:example-deployment-config[container specification
 above] instructs the container to first discover all running member pods within
 the MongoDB cluster. To achieve this, a _headless service_ is defined named
 *mongodb* in the example template.
@@ -502,37 +564,27 @@ addresses that represents the current endpoints for this service.
 .Headless Service Object Definition in the Example Template
 ====
 
-[source,json]
+[source,yaml]
 ----
-{
-  "kind": "Service",
-  "apiVersion": "v1",
-  "metadata": {
-    "name": "${MONGODB_SERVICE_NAME}",
-    "labels": {
-      "name": "${MONGODB_SERVICE_NAME}"
-    }
-  },
-  "spec": {
-    "ports": [
-      {
-        "protocol": "TCP",
-        "port": 27017,
-        "targetPort": 27017,
-        "nodePort": 0
-      }
-    ],
-    "selector": {
-      "name": "mongodb-replica"
-    },
-    "portalIP": "None",
-    "type": "ClusterIP",
-    "sessionAffinity": "None"
-  },
-  "status": {
-    "loadBalancer": {}
-  }
-}
+kind: "Service"
+apiVersion: "v1"
+metadata:
+  name: "${MONGODB_SERVICE_NAME}"
+  labels:
+    name: "${MONGODB_SERVICE_NAME}"
+spec:
+  ports:
+    - protocol: "TCP"
+      port: 27017
+      targetPort: 27017
+      nodePort: 0
+  selector:
+    name: "mongodb-replica"
+  portalIP: "None"
+  type: "ClusterIP"
+  sessionAffinity: "None"
+status:
+  loadBalancer: {}
 ----
 ====
 
@@ -546,22 +598,7 @@ using `rs.initiate(config)`. The script waits until MongoDB elects the *PRIMARY*
 member of the cluster.
 
 Once the *PRIMARY* member has been elected, the entrypoint script starts
-creating MongoDB users and databases. link:#creating-the-service-pod[The service
-pod] runs MongoDB without the `--auth` argument, so it can bootstrap the
-*PRIMARY* member without providing any authentication.
-
-When the user accounts and databases are created and the data are replicated to
-other members, the service pod then gives up its *PRIMARY* role and
-shuts down.
-
-[NOTE]
-====
-It is important that the `*restartPolicy*` field in the service pod is set to
-*Never* to prevent the service pod from restarting when the container exits.
-====
-
-As soon as the service pod shuts down, other members start a new election and
-the new *PRIMARY* member is elected from the running members.
+creating MongoDB users and databases.
 
 Clients can then start using the MongoDB instance by sending the queries to the
 *mongodb* service. As this service is a headless service, they do not need to
@@ -571,14 +608,14 @@ service then sends the query to one of the members in the replication set.
 [[scaling-mongodb-replication-set]]
 === Scaling the MongoDB Replication Set
 
-To link:../../dev_guide/deployments.html#scaling[increase the number of members]
+To xref:../../dev_guide/deployments/basic_deployment_operations.adoc#scaling[increase the number of members]
 in the cluster:
 
 ----
 $ oc scale rc mongodb-1 --replicas=<number>
 ----
 
-This tells link:#creating-the-deploymentconfig[the replication controller] to
+This tells xref:creating-the-deploymentconfig[the replication controller] to
 create a new MongoDB member pod. When a new member is created, the member
 entrypoint first attempts to discover other running members in the cluster. It
 then chooses one and adds itself to the list of members. Once the replication

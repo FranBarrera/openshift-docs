@@ -1,3 +1,4 @@
+[[dev-guide-port-forwarding]]
 = Port Forwarding
 {product-author}
 {product-version}
@@ -11,6 +12,13 @@
 toc::[]
 
 == Overview
+
+{product-title} takes advantage of a feature built-in to
+link:https://kubernetes.io/docs/user-guide/kubectl/kubectl_port-forward/#[Kubernetes]
+to support port forwarding to pods. See
+xref:../architecture/networking/port_forwarding.adoc#architecture-additional-concepts-port-forwarding[Architecture]
+for more information.
+
 You can use the CLI to forward one or more local ports to a pod. This allows you
 to listen on a given or random port locally, and have data forwarded to and from
 given ports in the pod.
@@ -19,14 +27,14 @@ given ports in the pod.
 
 == Basic Usage
 Support for port forwarding is built into
-link:../cli_reference/overview.html[the CLI]:
+xref:../cli_reference/index.adoc#cli-reference-index[the CLI]:
 
 ----
-$ oc port-forward -p <pod> [<local_port>:]<pod_port> [[<local_port>:]<pod_port> ...]
+$ oc port-forward <pod> [<local_port>:]<remote_port> [...[<local_port_n>:]<remote_port_n>]
 ----
 
 The CLI listens on each local port specified by the user, forwarding via the
-link:#protocol[protocol] described below.
+xref:protocol[protocol] described below.
 
 Ports may be specified using the following formats:
 
@@ -43,7 +51,7 @@ For example, to listen on ports `5000` and `6000` locally and forward data to an
 ====
 
 ----
-$ oc port-forward -p mypod 5000 6000
+$ oc port-forward <pod> 5000 6000
 ----
 ====
 
@@ -52,7 +60,7 @@ To listen on port `8888` locally and forward to `5000` in the pod, run:
 ====
 
 ----
-$ oc port-forward -p mypod 8888:5000
+$ oc port-forward <pod> 8888:5000
 ----
 ====
 
@@ -61,7 +69,7 @@ To listen on a free port locally and forward to `5000` in the pod, run:
 ====
 
 ----
-$ oc port-forward -p mypod :5000
+$ oc port-forward <pod> :5000
 ----
 ====
 
@@ -70,12 +78,11 @@ Or, alternatively:
 ====
 
 ----
-$ oc port-forward -p mypod 0:5000
+$ oc port-forward <pod> 0:5000
 ----
 ====
 
 [[protocol]]
-
 == Protocol
 Clients initiate port forwarding to a pod by issuing a request to the
 Kubernetes API server:
@@ -113,6 +120,6 @@ connection when it is finished with the port forwarding request.
 [NOTE]
 ====
 Administrators can see the
-link:../architecture/additional_concepts/port_forwarding.html[Architecture]
+xref:../architecture/networking/port_forwarding.adoc#architecture-additional-concepts-port-forwarding[Architecture]
 guide for more information.
 ====
